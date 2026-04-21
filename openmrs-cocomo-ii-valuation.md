@@ -145,3 +145,48 @@ $$TDEV = 3.67 \cdot (4913)^{0.28 + 0.003656} \approx 54 \text{ months}$$
 - Per-repo cloc JSON outputs: `openmrs/cloc-results/`
 - Aggregated SLOC data: `openmrs/aggregate.json`
 - Full computed result: `openmrs/cocomo_result.json`
+
+## Confidence review — strengths and weaknesses
+
+### Overall confidence
+
+If someone asked "is OpenMRS worth roughly $50M–$150M as a software asset under US labor conventions?" the answer is yes with reasonable confidence. If they asked "is it $73.7M specifically?" the answer is no — that precision is false. The headline is really the midpoint of a wide band, and the band is probably wider than ±30%.
+
+### Strengths
+
+**The size measurement is the strongest part.** The repos were actually cloned and measured with `cloc` at a specific point in time, with a defensible language-weighting scheme. The 757 KSLOC figure is reproducible — someone else running the same excludes against the same commits would get essentially the same number. The inputs are visible, not guessed.
+
+**The formula application is mechanical and correct.** The COCOMO II math — scale factors, effort exponent, multiplier product, schedule equation — is textbook Boehm 2000 calibration, applied correctly. If you accept the inputs, the outputs follow.
+
+**One real data-quality issue was caught.** The initial cloc of `openmrs-ngx-formentry` was inflated by a vendored 147K-line `yarn.js` file in `.yarn/releases/`. It was flagged as suspicious (~734 LOC per file is not TypeScript) and re-run with stronger excludes. That kind of check is often skipped in automated valuations, and when it's skipped the number is nonsense.
+
+**The sanity checks land in the right neighborhood.** $97/LOC for a complex medical system with COCOMO II's post-architecture complexity penalties is consistent with published estimates for similar-complexity systems. The per-repo pattern (core platform dominating, O3 monorepos second tier, small satellite apps) matches what you'd expect if you know the project.
+
+### Weaknesses — in order of how much they matter
+
+**1. Most of the backend modules are not included.** This is the largest weakness. OpenMRS's module ecosystem is enormous — appointment scheduling, CIEL, reporting, OCL client, reference metadata, Bahmni integration, reporting compatibility, metadata sharing, and dozens more, some very substantial. Only three modules (fhir2, htmlformentry, referenceapplication) were sampled as "representative." A serious valuation would enumerate the `openmrs-module-*` prefix across the org and include everything actively maintained. A reasonable guess is that adding them would bring total SLOC to 1M–1.3M and push the valuation toward $110M–$140M. So the $73.7M headline is almost certainly *low*.
+
+**2. The language weighting is judgment, not science.** XML was weighted 0.25, SCSS 0.4, HTML 0.5, JSON 0 — those numbers aren't calibrated against anything. Boehm himself is agnostic; the COCOMO II manual tells you to count "logical SLOC of the delivered product" and leaves language equivalence to the estimator. If XML were given full weight, openmrs-core alone would jump by ~130K SLOC and the total would climb 15–20%. If all non-Java/TS/Kotlin were excluded entirely, it would drop by ~10%. This single decision swings the headline more than any other input.
+
+**3. The effort multipliers are opinions about OpenMRS, not measurements.** The seventeen EMs were rated from public knowledge of the project. With an actual OpenMRS committer walking through them, several would likely move — CPLX might go from High to Very High (form engines + FHIR + concept dictionary really is unusually complex), PCON might go worse than Low (serious contributor churn in OSS medical software), RELY might go Very High (this is literally a medical record). Each notch up on an EM multiplies the result. If three EMs went up one level each, the headline could climb 40%.
+
+**4. The scale factors have the same issue but matter more.** Scale factors are *exponents* on size, so small rating errors compound. PMAT was called "Low" (CMM level 2 equivalent) — defensible for OSS with CI and reviews but no formal process. If someone argued PMAT should be "Very Low" (no defined process), sum of SF would rise by ~1.5 and E would jump from 1.0928 to ~1.108, which on 757 KSLOC adds about 500 person-months (~$7M). RESL is similar — rated Nominal because of the O3 migration; an argument for Low is easy to make.
+
+**5. COCOMO II is the wrong shape for OSS.** This is the philosophical weakness. The model assumes a single organization allocating staff on a schedule to hit a delivery date. OpenMRS is a 22-year rolling community project with a small paid core and many intermittent contributors from implementer organizations. The 91-FTE / 54-month picture is a counterfactual ("if a single firm built this from scratch on a schedule") — useful as a cost floor for a reimplementation, but *not* OpenMRS's actual investment profile. The real question is often what you're trying to answer. If it's "how much would it cost a company to recreate this" — reasonable. If it's "what has the community spent on it over 22 years" — actual historical PY is probably much higher than 409, because rewriting old code happened many times and the calendar was non-linear.
+
+**6. COCOMO II's 2000 calibration is old.** Boehm's coefficients (A=2.94, B=0.91) were fit to 161 projects completed in the 1990s. Software economics have changed — more reuse, better tools, more open-source leverage, but also more complex integration surfaces. Academic work since (COCOMO III drafts, COSYSMO, function-point-based alternatives) exists but hasn't replaced it. The model is a well-worn instrument, not a calibrated one.
+
+**7. The $15K/PM rate is a convention, not a measurement.** It's the standard Boehm-era fully-burdened US rate, still widely cited, but actual 2026 fully-burdened developer cost in the US is more like $20–25K/PM depending on location and level. At $22K/PM the headline would be $108M. At the global blended $7.5K/PM (more representative of who actually contributes to OpenMRS), it would be $37M. The ~3× spread from rate alone is often larger than the spread from any other input.
+
+### How to tighten this
+
+If a defensible number (rather than a decent first pass) is needed:
+
+- **Enumerate the full `openmrs-module-*` catalog** from the GitHub org and include the top 20–30 by commit activity — that's the biggest omission.
+- **Get an OpenMRS committer** (or at minimum someone who's been around long enough to rate PMAT, CPLX, PCON, RELY with authority) to walk through the 22 COCOMO II inputs. Each rating takes 30 seconds; the total conversation is under 15 minutes and would materially tighten the estimate.
+- **Decide explicitly what question the valuation is answering** — "reimplementation cost" vs. "historical investment" vs. "community asset value" — because the three give different numbers and use different labor rates.
+- **Present the result as a range** with a Monte Carlo over the inputs that are least certain (the language weights and the mid-ranked EMs), rather than a single point estimate.
+
+### Bottom line
+
+What is presented here is a credible back-of-envelope that gets to the right order of magnitude and identifies where the sensitivity lives. It is not a number to put in a grant proposal, a valuation report for a donor, or an M&A discussion without the tightening above.
